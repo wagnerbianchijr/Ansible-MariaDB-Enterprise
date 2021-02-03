@@ -121,7 +121,20 @@
     - tg_setup_mdb_enterprise
   - debug: msg="{{cmd_setup_mdb_enterprise.changed}}"
     tags:
-    - tg_setup_mdb_enterprise 
+    - tg_setup_mdb_enterprise
+
+  #: Adding a basic configuration for starting the mariadb.service
+  - name: Adding a basic configuration for starting the mariadb.service
+    template:
+      src: templates/server.j2
+      dest: /etc/my.cnf.d/server.cnf
+      owner: root
+      group: root
+      mode: 0644
+    register: cmd_add_basic_configuration
+    tags:
+    - tb_add_basic_configuration
+  - debug: msg="{{cmd_add_basic_configuration.changed}}"
 
   #: Starting up the MariaDB Enterprise systemd unit (mariadb.service)
   - name: Starting up the MariaDB Enterprise systemd unit

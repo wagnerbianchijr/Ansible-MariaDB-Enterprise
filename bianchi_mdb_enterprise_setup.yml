@@ -1,0 +1,139 @@
+---
+- hosts: dbservers
+  become: yes
+  connection: ssh
+  strategy: linear
+  gather_facts: yes
+
+  #: Asking for additional information
+  vars_prompt:
+  - name: customer_download_token
+    prompt: ENTER THE CUSTOMER DOWNLOAD TOKEN
+    private: no
+  - name: remove_current_repo
+    prompt: WANT TO REMOVE ANY EXISTING MARIADB OFFICIAL REPO (yes/no)
+    private: no 
+  - name: mariadb_version
+    prompt: MARIADB ENTERPRISE VERSION FOR THE REPO (e.g. 10.5)
+    private: no
+  #
+  #: Entering tasks
+  tasks:
+
+  #: Checking if there is already a repo setup
+  - name: Checking if the repo file exists (MariaDB Official Repository)
+    stat:
+      path: /etc/yum.repos.d/mariadb.repo
+    register: cmd_check_repo_file
+    tags:
+    - tg_check_repo
+  - debug: msg="{{cmd_check_repo_file.stat.exists}}"
+    tags:
+    - tg_check_repo
+
+  #: Remove current repositories
+  - name: Removing the current setup repository
+    raw: rm -rfv /etc/yum.repos.d/mariadb.repo
+    register: cmd_remove_repo_file
+    when: remove_current_repo == "yes"
+    tags:
+    - tg_remove_repo_file
+  - debug: msg="{{cmd_remove_repo_file.changed}}"
+    when: remove_current_repo == "yes"
+    tags:
+    - tg_remove_repo_file
+
+  #: Remove all current YUM metadata to avoid issues
+  - name: yum-clean-metadata
+    command: yum clean metadata
+    args:
+      warn: no
+    register: cmd_clean_yum_metadata
+    tags:
+    - tg_clean_yum_metadata
+  - debug: msg="{{cmd_clean_yum_metadata.changed}}"
+    tags:
+    - tg_clean_yum_metadata
+
+  #: Setting up the MariaDB Enteprise Repo + the customer download token
+  - name: Setting up needed packages
+    yum:
+      name: wget
+      state: latest
+    register: cmd_setup_wget
+    tags:
+    - tg_set_wget
+  - debug: msg="{{cmd_setup_wget.changed}}"
+    tags:
+    - tg_set_wget
+
+  #: Download the mariadb_es_repo_setup
+  - name: Download the MariaDB mariadb_es_repo_setup
+    get_url:
+      url: https://dlm.mariadb.com/enterprise-release-helpers/mariadb_es_repo_setup
+      dest: /root/mariadb_es_repo_setup
+    register: cmd_get_mariadb_es_repo_setup
+    tags:
+    - tg_mariadb_es_repo_setup
+  - debug: msg="{{cmd_get_mariadb_es_repo_setup.changed}}"
+    tags:
+    - tg_mariadb_es_repo_setup
+
+  #: Certifying that the mariadb_es_repo_setup has the correct sha256sum
+  - name: Certifying that the mariadb_es_repo_setup has the correct sha256sum
+    raw: echo "c01fa97aed71ca0cd37cba7036ff80ab40efed4cc261c890aa2aa11cd8ab4e2f mariadb_es_repo_setup" | sha256sum -c -
+    register: cmd_sha256sum
+    tags:
+    - tg_sha256sum
+  - debug: msg="{{cmd_sha256sum.changed}}"
+    tags:
+    - tg_sha256sum
+
+  #: Work out the mariadb_es_repo_setup permissions
+  - name: Work out the mariadb_es_repo_setup permissions
+    raw: chmod +x /root/mariadb_es_repo_setup
+    register: cmd_chmod
+    tags:
+    - tg_chmod
+  - debug: msg="{{cmd_chmod.changed}}"
+    tags:
+    - tg_chmod
+
+  #: Setup the MariaDB Enterprise Server Repository
+  - name: Setup the MariaDB Enterprise Server Repository
+    raw: /root/mariadb_es_repo_setup --token="{{customer_download_token}}" --apply --mariadb-server-version="{{mariadb_version}}"
+    register: cmd_setup_repo
+    when: remove_current_repo == "yes"
+    tags:
+    - tg_setup_repo
+  - debug: msg="{{cmd_setup_repo.changed}}"
+    when: remove_current_repo == "yes"
+    tags:
+    - tg_setup_repo
+
+  #: Setting up the MariaDB Enterprise Server
+  - name: Setting up the MariaDB Enterprise Server
+    yum:
+      name: ['MariaDB-client','MariaDB-server', 'MariaDB-backup']
+      state: latest
+    register: cmd_setup_mdb_enterprise
+    tags:
+    - tg_setup_mdb_enterprise
+  - debug: msg="{{cmd_setup_mdb_enterprise.changed}}"
+    tags:
+    - tg_setup_mdb_enterprise 
+
+  #: Starting up the MariaDB Enterprise systemd unit (mariadb.service)
+  - name: Starting up the MariaDB Enterprise systemd unit
+    systemd:
+      name: mariadb
+      state: started
+      enabled: yes
+      masked: no
+    register: cmd_start_mariadb_enterprise
+    tags:
+    - tg_start_mariadb_enterprise
+  - debug: msg="{{cmd_start_mariadb_enterprise.changed}}"
+    tags:
+    - tg_start_mariadb_enterprise
+...

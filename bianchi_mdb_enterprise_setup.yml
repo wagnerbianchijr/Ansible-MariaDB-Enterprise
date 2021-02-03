@@ -16,7 +16,7 @@
   - name: mariadb_version
     prompt: MARIADB ENTERPRISE VERSION FOR THE REPO (e.g. 10.5)
     private: no
-  #
+
   #: Entering tasks
   tasks:
 
@@ -140,7 +140,7 @@
   - name: Starting up the MariaDB Enterprise systemd unit
     systemd:
       name: mariadb
-      state: started
+      state: restarted
       enabled: yes
       masked: no
     register: cmd_start_mariadb_enterprise
